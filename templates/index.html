@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Plant Disease Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="app-body">
+    <div class="gradient-bg"></div>
+
+   <div class="nav-bar">
+    <div class="nav-logo">
+        <span class="logo-icon">🌱</span>
+        <span>AgroVision AI</span>
+    </div>
+    <div class="nav-links">
+        <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+        <a href="{{ url_for('how_it_works') }}" class="nav-link">How it works</a>
+        <a href="{{ url_for('about') }}" class="nav-link">About</a>
+    </div>
+</div>
+
+    <main class="hero-layout">
+        <!-- LEFT CONTENT -->
+        <section class="hero-text card-animate">
+            <h1>Plant Disease<br><span>Prediction Assistant</span></h1>
+            <p class="hero-subtitle">
+                Upload a leaf image and let our AI model detect possible diseases,
+                show severity, and suggest remedies & tonics you can buy online.
+            </p>
+
+            <div class="hero-highlights">
+                <div class="pill">⚙️ Powered by CNN (Deep Learning)</div>
+                <div class="pill">🩺 Early detection support</div>
+                <div class="pill">🛒 E-commerce tonic suggestions</div>
+            </div>
+
+            <ul class="hero-steps">
+                <li><span>1</span> Capture a clear photo of a single leaf.</li>
+                <li><span>2</span> Upload it below using drag & drop or file picker.</li>
+                <li><span>3</span> View disease, severity, and remedies instantly.</li>
+            </ul>
+        </section>
+
+        <!-- RIGHT CONTENT: UPLOAD CARD -->
+        <section class="hero-card card-animate delay-1">
+            <h2>Upload Leaf Image</h2>
+            <p class="small-text">Supported: JPG, PNG • Best: single leaf, plain background</p>
+
+            <form action="{{ url_for('predict') }}" method="POST" enctype="multipart/form-data" class="upload-form">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-inner">
+                        <div class="drop-icon">📷</div>
+                        <p class="drop-title">Drag & drop image here</p>
+                        <p class="drop-subtitle">or click to browse from your device</p>
+                        <button type="button" class="btn secondary-btn" id="browseBtn">Choose Image</button>
+                        <input type="file" name="image" id="imageInput" accept="image/*" required>
+                    </div>
+                </div>
+
+                <div class="preview-panel" id="previewPanel">
+                    <p class="preview-title">Preview</p>
+                    <img id="previewImage" alt="Leaf preview">
+                </div>
+
+                <button type="submit" class="btn primary-btn full-width-btn">
+                    🔍 Analyze Leaf with AI
+                </button>
+            </form>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>Built for educational purposes • Plant Disease Prediction using Python, TensorFlow & Flask</p>
+    </footer>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const imageInput = document.getElementById('imageInput');
+        const browseBtn = document.getElementById('browseBtn');
+        const previewPanel = document.getElementById('previewPanel');
+        const previewImage = document.getElementById('previewImage');
+
+        // open file picker on button or zone click
+        browseBtn.addEventListener('click', () => imageInput.click());
+        dropZone.addEventListener('click', () => imageInput.click());
+
+        // handle file select
+        imageInput.addEventListener('change', handleFile);
+
+        // drag & drop events
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                imageInput.files = e.dataTransfer.files;
+                showPreview(file);
+            }
+        });
+
+        function handleFile() {
+            const file = this.files[0];
+            if (file) {
+                showPreview(file);
+            }
+        }
+
+        function showPreview(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImage.src = e.target.result;
+                previewPanel.classList.add('visible');
+            };
+            reader.readAsDataURL(file);
+        }
+    </script>
+</body>
+</html>

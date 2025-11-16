@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>How AgroVision AI Works</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="app-body">
+    <div class="gradient-bg"></div>
+
+    <div class="nav-bar">
+        <div class="nav-logo">
+            <span class="logo-icon">🌱</span>
+            <span>AgroVision AI</span>
+        </div>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+            <a href="{{ url_for('how_it_works') }}" class="nav-link active">How it works</a>
+            <a href="{{ url_for('about') }}" class="nav-link">About</a>
+        </div>
+    </div>
+
+    <header class="header">
+        <h1>How AgroVision AI Works</h1>
+        <p>Step-by-step explanation of the plant disease prediction pipeline.</p>
+    </header>
+
+    <main class="info-page">
+        <section class="info-card card-animate">
+            <h2>1. Image Input</h2>
+            <p>The user uploads a leaf image from the web interface. The system works best when:</p>
+            <ul>
+                <li>Only one leaf is visible in the image</li>
+                <li>Background is simple (plain or soil)</li>
+                <li>The leaf is clear and in focus</li>
+            </ul>
+        </section>
+
+        <section class="info-card card-animate delay-1">
+            <h2>2. Preprocessing</h2>
+            <p>Inside the Flask backend, the image is:</p>
+            <ul>
+                <li>Resized to the required input size (e.g., 224 × 224 pixels)</li>
+                <li>Converted into a numeric array</li>
+                <li>Normalized (pixel values scaled between 0 and 1)</li>
+            </ul>
+        </section>
+
+        <section class="info-card card-animate delay-2">
+            <h2>3. CNN Prediction</h2>
+            <p>
+                A pre-trained Convolutional Neural Network (CNN) model is loaded from
+                <code>plant_disease_model.h5</code>. The model:
+            </p>
+            <ul>
+                <li>Extracts visual features like spots, color changes and patterns</li>
+                <li>Classifies the image into one of the known disease categories</li>
+                <li>Outputs probabilities for each class</li>
+            </ul>
+        </section>
+
+        <section class="info-card card-animate delay-3">
+            <h2>4. Interpretation</h2>
+            <p>
+                The predicted class index is mapped to a readable label such as
+                <strong>"Tomato – Early blight"</strong> or <strong>"Potato – Late blight"</strong>.
+                The system also calculates a confidence percentage and a severity level.
+            </p>
+        </section>
+
+        <section class="info-card card-animate delay-4">
+            <h2>5. Remedies & E-commerce</h2>
+            <p>Based on the disease, AgroVision AI:</p>
+            <ul>
+                <li>Shows description, typical symptoms and management tips</li>
+                <li>Lists sample remedies or tonics with images</li>
+                <li>Provides buttons that open Amazon / Flipkart search pages for related products</li>
+            </ul>
+            <p class="small-text subtle">
+                Note: Product links are example search URLs. The system does not sell products directly.
+            </p>
+        </section>
+
+        <div class="btn-row center">
+            <a href="{{ url_for('index') }}" class="btn ghost-btn">⬅ Back to Home</a>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>AgroVision AI • Understanding the plant disease detection workflow</p>
+    </footer>
+</body>
+</html>

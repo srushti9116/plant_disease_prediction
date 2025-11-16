@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Prediction Result</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="app-body">
+    <div class="gradient-bg"></div>
+
+   <div class="nav-bar">
+    <div class="nav-logo">
+        <span class="logo-icon">🌱</span>
+        <span>AgroVision AI</span>
+    </div>
+    <div class="nav-links">
+        <a href="{{ url_for('index') }}" class="nav-link">Home</a>
+        <a href="{{ url_for('how_it_works') }}" class="nav-link">How it works</a>
+        <a href="{{ url_for('about') }}" class="nav-link">About</a>
+    </div>
+</div>
+
+    <header class="header">
+        <h1>Prediction Result</h1>
+        <p>Your leaf image has been analyzed. Below is a clear summary.</p>
+    </header>
+
+    <main class="result-layout">
+
+        <!-- LEFT: IMAGE -->
+        <section class="result-card card-animate">
+            <h2>Uploaded Leaf</h2>
+            <img src="{{ image_file }}" class="uploaded-img" alt="Leaf Image">
+            <p class="small-text subtle">Tip: Use a clear close-up of a single leaf for best accuracy.</p>
+        </section>
+
+        <!-- RIGHT: DETAILS -->
+        <section class="result-card details-card card-animate delay-1">
+            <h2>AI Diagnosis</h2>
+
+            <div class="summary-row">
+                <div>
+                    <p class="label">Plant</p>
+                    <p class="value">{{ plant }}</p>
+                </div>
+                <div>
+                    <p class="label">Disease</p>
+                    <p class="value highlight">{{ disease }}</p>
+                </div>
+                <div>
+                    <p class="label">Severity</p>
+                    <span class="badge badge-{{ severity|lower|replace(' ', '-') }}">
+                        {{ severity }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="confidence-wrapper">
+                <div class="conf-header">
+                    <span>Model Confidence</span>
+                    <span>{{ confidence }} %</span>
+                </div>
+                <div class="confidence-bar">
+                    <div class="confidence-fill" style="width: {{ confidence }}%;"></div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>Description</h3>
+                <p>{{ description }}</p>
+            </div>
+
+            <div class="info-section">
+                <h3>Typical Symptoms</h3>
+                <p>{{ symptoms }}</p>
+            </div>
+
+            <div class="info-section">
+                <h3>Management Tips</h3>
+                <p>{{ management }}</p>
+            </div>
+
+            <div class="info-section">
+                <h3>Recommended Remedies & Tonics</h3>
+
+                {% if remedies and remedies|length > 0 %}
+    {% for item in remedies %}
+        <article class="remedy-card">
+            <img src="{{ item.image }}" class="remedy-img" alt="{{ item.name }}">
+            <div class="remedy-content">
+                <h4>{{ item.name }}</h4>
+                <p>{{ item.description }}</p>
+                <a href="{{ item.link }}" target="_blank" class="btn buy-btn">
+                    🛒 View on Amazon / Flipkart
+                </a>
+            </div>
+        </article>
+    {% endfor %}
+{% else %}
+    <p>No specific products suggested for this class. Follow general management and consult an expert.</p>
+{% endif %}
+
+            </div>
+
+            <p class="disclaimer">
+                ⚠️ This system is for educational support only. Always confirm the diagnosis and chemical usage
+                with an agriculture officer or plant pathologist before treatment.
+            </p>
+
+            <div class="btn-row">
+                <a href="{{ url_for('index') }}" class="btn ghost-btn">⬅ Analyze another leaf</a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>Plant Disease Detection • Mini Project • Python · TensorFlow · Flask</p>
+    </footer>
+</body>
+</html>
