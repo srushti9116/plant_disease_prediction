@@ -2,15 +2,33 @@ import os
 import json
 import copy
 import numpy as np
+import datetime
 from flask import Flask, render_template, request
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
+import plotly.graph_objects as go
+import plotly.express as px
+from pdf_generator import generate_pdf_report
+from delivery import mail, deliver_report
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
+app.config['REPORTS_FOLDER'] = os.path.join('static', 'reports')
 
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
+
+if not os.path.exists(app.config['REPORTS_FOLDER']):
+    os.makedirs(app.config['REPORTS_FOLDER'])
+
+# Configure Flask-Mail
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+
+mail.init_app(app)
 
 # ---------- MODEL & LABELS ----------
 MODEL_PATH = os.path.join('model', 'plant_disease_model.h5')
@@ -252,7 +270,7 @@ def get_details_for_label(label: str, plant: str):
 
 
 def model_predict(img_path):
-    """Load image, preprocess, run prediction + return raw label and confidence."""
+    """Load image, preprocess, run prediction + return top 5 labels and confidences."""
     target_size = (224, 224)  # adjust if your model uses other size
     img = load_img(img_path, target_size=target_size)
     img_array = img_to_array(img) / 255.0
@@ -260,16 +278,24 @@ def model_predict(img_path):
 
     preds = model.predict(img_array)[0]
 
-    class_index = int(np.argmax(preds))
-    confidence = float(preds[class_index]) * 100.0
-    label = idx_to_class.get(class_index, "Unknown")
+    # Get top 5 indices and confidences
+    top5_indices = np.argsort(preds)[-5:][::-1]  # Sort descending
+    top5_confidences = [float(conf) for conf in preds[top5_indices] * 100.0]
+    top5_labels = [idx_to_class.get(int(idx), "Unknown") for idx in top5_indices]
+
+    # For backward compatibility, return top1 as primary
+    top1_index = top5_indices[0]
+    top1_confidence = top5_confidences[0]
+    top1_label = top5_labels[0]
 
     print("=== PREDICTION ===")
-    print("Index:", class_index)
-    print("Raw label from model:", repr(label))
-    print("Confidence:", confidence)
+    print("Top 1 - Index:", top1_index, "Label:", repr(top1_label), "Confidence:", top1_confidence)
+    for i, (label, conf) in enumerate(zip(top5_labels, top5_confidences), 1):
+        print(f"Top {i} - Label: {repr(label)}, Confidence: {conf:.2f}")
 
-    return label, confidence
+    # Return top1 and top5 list
+    top5_candidates = list(zip(top5_labels, top5_confidences))
+    return top1_label, top1_confidence, top5_candidates
 # ---------- SMALL HELPER ----------
 def parse_label(label: str):
     """
@@ -285,6 +311,62 @@ def parse_label(label: str):
     plant_readable = plant.replace("_", " ")
     disease_readable = disease.replace("_", " ")
     return plant_readable, disease_readable
+
+def store_prediction(prediction_data, image_path):
+    """Store prediction data in JSON file."""
+    try:
+        with open('predictions.json', 'r') as f:
+            predictions = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        predictions = []
+
+    prediction_entry = {
+        'id': len(predictions) + 1,
+        'timestamp': datetime.datetime.now().isoformat(),
+        'plant': prediction_data['plant'],
+        'disease': prediction_data['disease'],
+        'confidence': prediction_data['confidence'],
+        'severity': prediction_data['severity'],
+        'image_path': image_path.replace("\\", "/")
+    }
+
+    predictions.append(prediction_entry)
+
+    with open('predictions.json', 'w') as f:
+        json.dump(predictions, f, indent=2)
+
+def get_dashboard_data():
+    """Load and process prediction data for dashboard."""
+    try:
+        with open('predictions.json', 'r') as f:
+            predictions = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        predictions = []
+
+    # Process data for visualizations
+    disease_counts = {}
+    confidence_data = []
+    plant_counts = {}
+    severity_counts = {}
+
+    for pred in predictions:
+        disease = pred['disease']
+        confidence = pred['confidence']
+        plant = pred['plant']
+        severity = pred['severity']
+
+        disease_counts[disease] = disease_counts.get(disease, 0) + 1
+        plant_counts[plant] = plant_counts.get(plant, 0) + 1
+        severity_counts[severity] = severity_counts.get(severity, 0) + 1
+        confidence_data.append(confidence)
+
+    return {
+        'total_predictions': len(predictions),
+        'disease_counts': disease_counts,
+        'plant_counts': plant_counts,
+        'severity_counts': severity_counts,
+        'confidence_data': confidence_data
+    }
 
 
 
@@ -310,7 +392,7 @@ def predict():
         file.save(save_path)
 
         # Predict
-        label, confidence = model_predict(save_path)
+        label, confidence, top5_candidates = model_predict(save_path)
         plant, disease_readable = parse_label(label)
 
         # Get disease info & remedies
@@ -322,7 +404,38 @@ def predict():
         print("Plant:", plant, "| Disease:", disease_readable)
         print("Number of remedies:", len(remedies))
 
-        image_web_path = save_path.replace("\\", "/")
+        image_web_path = f"/static/uploads/{filename}"
+
+        # Prepare prediction data for storage and PDF
+        prediction_data = {
+            'plant': plant,
+            'disease': disease_readable,
+            'confidence': round(confidence, 2),
+            'description': details["description"],
+            'symptoms': details["symptoms"],
+            'management': details["management"],
+            'severity': details["severity"],
+            'remedies': remedies,
+            'top5_candidates': top5_candidates
+        }
+
+        # Store prediction in JSON
+        store_prediction(prediction_data, save_path)
+
+        # Generate PDF report
+        pdf_filename = f"report_{int(datetime.datetime.now().timestamp())}.pdf"
+        pdf_path = os.path.join(app.config['REPORTS_FOLDER'], pdf_filename)
+        generate_pdf_report(prediction_data, save_path, pdf_path)
+
+        # Trigger multi-channel delivery
+        contact_info = {
+            'whatsapp': request.form.get('whatsapp'),
+            'sms': request.form.get('sms'),
+            'email': request.form.get('email')
+        }
+        delivery_status = []
+        if any(contact_info.values()):
+            delivery_status = deliver_report(prediction_data, pdf_path, contact_info)
 
         return render_template(
             'result.html',
@@ -335,7 +448,10 @@ def predict():
             symptoms=details["symptoms"],
             management=details["management"],
             severity=details["severity"],
-            remedies=remedies
+            remedies=remedies,
+            top5_candidates=top5_candidates,
+            pdf_path=f"/static/reports/{pdf_filename}",
+            delivery_status=delivery_status
         )
 
     return "Something went wrong. Please try again."
@@ -349,6 +465,85 @@ def how_it_works():
 @app.route('/about')
 def about():
     return render_template('about.html')
+
+
+@app.route('/dashboard')
+def dashboard():
+    dashboard_data = get_dashboard_data()
+
+    # Create Plotly figures
+    # Disease frequency chart
+    disease_fig = go.Figure(data=[
+        go.Bar(
+            x=list(dashboard_data['disease_counts'].keys()),
+            y=list(dashboard_data['disease_counts'].values()),
+            marker_color='lightblue'
+        )
+    ])
+    disease_fig.update_layout(
+        title="Disease Frequency",
+        xaxis_title="Disease",
+        yaxis_title="Count",
+        template="plotly_white"
+    )
+
+    # Plant distribution chart
+    plant_fig = go.Figure(data=[
+        go.Pie(
+            labels=list(dashboard_data['plant_counts'].keys()),
+            values=list(dashboard_data['plant_counts'].values()),
+            hole=0.3
+        )
+    ])
+    plant_fig.update_layout(
+        title="Plant Distribution",
+        template="plotly_white"
+    )
+
+    # Confidence distribution histogram
+    confidence_fig = go.Figure(data=[
+        go.Histogram(
+            x=dashboard_data['confidence_data'],
+            nbinsx=20,
+            marker_color='green'
+        )
+    ])
+    confidence_fig.update_layout(
+        title="Prediction Confidence Distribution",
+        xaxis_title="Confidence (%)",
+        yaxis_title="Frequency",
+        template="plotly_white"
+    )
+
+    # Severity distribution
+    severity_fig = go.Figure(data=[
+        go.Bar(
+            x=list(dashboard_data['severity_counts'].keys()),
+            y=list(dashboard_data['severity_counts'].values()),
+            marker_color='orange'
+        )
+    ])
+    severity_fig.update_layout(
+        title="Disease Severity Distribution",
+        xaxis_title="Severity",
+        yaxis_title="Count",
+        template="plotly_white"
+    )
+
+    # Convert to HTML
+    disease_chart = disease_fig.to_html(full_html=False)
+    plant_chart = plant_fig.to_html(full_html=False)
+    confidence_chart = confidence_fig.to_html(full_html=False)
+    severity_chart = severity_fig.to_html(full_html=False)
+
+    return render_template(
+        'dashboard.html',
+        total_predictions=dashboard_data['total_predictions'],
+        disease_chart=disease_chart,
+        plant_chart=plant_chart,
+        confidence_chart=confidence_chart,
+        severity_chart=severity_chart
+    )
 
 
 if __name__ == '__main__':

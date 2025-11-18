@@ -102,14 +102,35 @@
 
             </div>
 
+            <div class="info-section">
+                <h3>Top 5 Prediction Candidates</h3>
+                <p>Here are the top 5 possible disease predictions with their confidence levels:</p>
+                <ul class="top5-list">
+                    {% for label, conf in top5_candidates %}
+                        <li class="top5-item">
+                            <span class="candidate-label">{{ label.replace('___', ' - ') }}</span>
+                            <span class="candidate-confidence">{{ "%.2f"|format(conf) }}%</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
             <p class="disclaimer">
                 ⚠️ This system is for educational support only. Always confirm the diagnosis and chemical usage
                 with an agriculture officer or plant pathologist before treatment.
             </p>
 
             <div class="btn-row">
+                <a href="{{ pdf_path }}" download class="btn primary-btn">📄 Download PDF Report</a>
                 <a href="{{ url_for('index') }}" class="btn ghost-btn">⬅ Analyze another leaf</a>
             </div>
+
+            {% if delivery_status %}
+            <div class="info-section">
+                <h3>Report Delivery Status</h3>
+                <p>Report sent successfully via: {{ delivery_status|join(', ') }}</p>
+            </div>
+            {% endif %}
         </section>
     </main>
 
